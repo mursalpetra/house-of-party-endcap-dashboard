@@ -93,7 +93,8 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </header>
 <div class="kpis" id="kpis"></div>
 <div class="tabs" id="tabs">
-  <div class="tab active" data-v="overview">Overview</div>
+  <div class="tab active" data-v="summary">Summary</div>
+  <div class="tab" data-v="overview">Overview</div>
   <div class="tab" data-v="skus">SKU Performance</div>
   <div class="tab" data-v="forecast">Sales vs Forecast</div>
   <div class="tab" data-v="channel">Channel &amp; Promo</div>
@@ -101,7 +102,20 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
   <div class="tab" data-v="liability">Markdown &amp; Liability</div>
 </div>
 
-<section class="view active" id="overview">
+<section class="view active" id="summary">
+  <div class="panel" style="margin-bottom:14px"><h3>Program Final · Apr 5 – Sep 5, 2026</h3>
+    <div class="ph-sub">Full-season summary across the C3 spring set and the C4 endcap program. Figures computed from the JLB weekly feed; explore any number on the other tabs.</div>
+    <div class="liab-cards" style="grid-template-columns:repeat(3,1fr)" id="sumCards"></div></div>
+  <div class="grid g2">
+    <div class="panel"><h3 style="color:var(--good)">What worked</h3><div id="sumWins"></div></div>
+    <div class="panel"><h3 style="color:var(--crit)">What didn't</h3><div id="sumLoss"></div></div>
+  </div>
+  <div class="panel" style="margin-top:14px"><h3>What we'd do differently</h3>
+    <div class="ph-sub">The 2027 blueprint, each item tied to a lesson above.</div>
+    <div id="sumNext"></div></div>
+</section>
+
+<section class="view" id="overview">
   <div class="grid g2">
     <div class="panel"><h3>Sell-Through Trajectory · Actual vs Run-Rate Forecast</h3>
       <div class="ph-sub">Cumulative program sell-through to the selected week, projected to Sep 1 at recent run-rate, vs the 85% goal.</div>
@@ -567,8 +581,51 @@ function lostChart(){
   t+=end>0?` · ${end}d to program end`:` · program ended Sep 1`;
   document.getElementById('cdChip').textContent=t;})();
 
+
+// ---- program summary tab ----
+function renderSummary(){
+  const last=WEEKS.length-1, ordered=progOrdered();
+  const capped=cappedCum(last), over=oversellCum(last);
+  const iC4=wdates.indexOf('2026-06-14');
+  const c3win=cappedCum(iC4-1)/ordered;
+  const c4soldU=over+c4newCum(last);
+  const unitsAll=progCum(last)+c4newCum(last);
+  const dolC3=wdates.reduce((t,d)=>t+((AGG[d]||{}).dollars||0),0);
+  let dolC4=0;(DATA.c4new||[]).forEach(e=>{const by=CHB[e.dpci]||{};Object.values(by).forEach(w=>{Object.values(w).forEach(v=>dolC4+=v[0]);});});
+  let peakU=0,peakD=null;wdates.forEach(d=>{if((AGG[d].units||0)>peakU){peakU=AGG[d].units;peakD=d;}});
+  const cards=[
+    ['Retail scanned', usd(dolC3+dolC4), fmt(unitsAll)+' units across 22 weeks'],
+    ['C3 buy sell-through', pct(capped/ordered), pct(c3win)+' in the C3 window (pre-6/14)'],
+    ['C4 commit sold', pct(c4soldU/C4_ORDERED), fmt(over)+' replen + '+fmt(c4newCum(last))+' new items of '+fmt(C4_ORDERED)],
+    ['Best week', fmt(peakU)+' u', LBLMAP[peakD]+' — clearance week'],
+    ['Sold-out items', '6 of 19', 'sold full C3 buy, then sold C4 replen'],
+    ['Residual liability', usd(DATA.liability.c3), 'C3 exposure · C4 capped at '+usd(DATA.liability.c4_cap)],
+  ];
+  document.getElementById('sumCards').innerHTML=cards.map(c=>`<div class="lcard"><div class="lt">${c[0]}</div><div class="lv">${c[1]}</div><div class="ld">${c[2]}</div></div>`).join('');
+  const item=(cls,head,sub,body)=>`<div class="signal"><div class="s-head"><span class="dotc ${cls}"></span>${head}<small>${sub}</small></div><div class="s-act">${body}</div></div>`;
+  document.getElementById('sumWins').innerHTML=[
+    item('d-good','Price discovery','$10–11.50 effective from the Jun 14 reset','3–4K units every week for 11 straight weeks; the end-of-program markdown moved 16.6K units in one week at ~$5.40. Same product, same fixture — the guest set the price.'),
+    item('d-good','Six sell-outs','Palm Tree, Pool Party, Cottage Bloom ×2, Rowdy Rodeo hero, Tropical Paradise','Each sold its entire C3 buy and kept selling from C4 replenishment (7,885 replen units) — the all-in-one hero format is proven.'),
+    item('d-good','Seasonal waves hit on cue','Graduation 83% · Patriotic cleared by Jul 4 · BTS built weekly','When the window was respected — priced event, planned exit — seasonal product tripled velocity and cleared in season.'),
+    item('d-good','Omni attach','~22% of $ online · Back-to-School 40%+','The endcap fed Target.com: ship-from-store, pickup and Shipt carried a fifth of the business.'),
+    item('d-good','Clean exit','Fixture cleared within 2 weeks of markdown','Residual C3 exposure a fraction of the June forecast ($139K → '+usd(DATA.liability.c3)+'); C4 protected by the fixed 10% cap.'),
+  ].join('');
+  document.getElementById('sumLoss').innerHTML=[
+    item('d-crit','Opening price architecture','31.8% sold in the 10-week C3 window','At $14.99–19.99 the line crawled; nearly 80% of all units sold at promoted or markdown prices. The retail was wrong, not the demand.'),
+    item('d-crit','Availability on peak items','Paper kits up to 76% OOS in their best weeks','A casepack/breakpack spec issue (since corrected) cost an estimated ~11K units of unmet demand.'),
+    item('d-crit','Buy allocated against velocity','Deepest buys on the slowest items','Magical Rainbows (15.1K buy, 23% ST), Cactus (15K, 25%), Floral Folly (17.7K, 45%) — while Pool Party and the Cottage Blooms earned more depth than they got.'),
+    item('d-crit','C4 commit front-loaded','16.2% of 106,992 sold · ~63K units on hand at final report','Inventory arrived ahead of proof instead of chasing weekly sell-through; zero on-order behind winners after July.'),
+    item('d-warn','Productivity vs goal','$30–60 per store/week vs the $120 bar','The category never approached $120 at any price on this fixture — the goal needs resetting as much as the program.'),
+  ].join('');
+  document.getElementById('sumNext').innerHTML=[
+    item('d-good','Build the proven price in','$9.99 / $12.99 ladder engineered to full margin','Open where the guest already told us they buy, instead of discovering it mid-season.'),
+    item('d-good','Fewer, deeper','10–12 proven items, deeper facings','Depth follows demonstrated velocity — hero kits and seasonal icons, cut the generic middle.'),
+    item('d-good','Tight seasonal in-and-outs','Sized to the window, exits planned','Grad → Patriotic → Summer → BTS rotation, each with a set markdown date and a buy that clears at it.'),
+    item('d-good','Fix the supply side','Target-spec casepacks + domestic replen buffer','Winners never go dark; inventory commitments follow weekly sell-through.'),
+  ].join('');
+}
 function renderAll(){renderKPIs();trajChart();pspwChart();wkChart();renderSignals();rankChart();buildChips();paintChips();trendChart();fcSkuChart();fcDetail();renderHealth();oosChart();wosChart();renderC3();renderC4();liabChart();chmixChart();onlineShareChart();promoChart();lostChart();}
 // initial selection: top 5 for trend
 selSet=new Set(SK.map((s,i)=>i).sort((a,b)=>cumUnits(SK[b],WEEKS.length-1)-cumUnits(SK[a],WEEKS.length-1)).slice(0,5));
-renderAll();
+renderAll();renderSummary();
 </script></body></html>
