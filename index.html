@@ -386,7 +386,7 @@ function skuVal(s,m){
   if(m==='revenue')return cumUnits(s,asOf)*((metaAt(s,asOf).asp)||s.msrp||0);
 }
 function rankChart(){
-  let rows=SK.filter(s=>rankFam==='all'||s.family===rankFam).slice();
+  let rows=ALLSK.filter(s=>rankFam==='all'||s.family===rankFam).slice();
   rows.sort((a,b)=>(skuVal(b,rankMetric)||0)-(skuVal(a,rankMetric)||0));
   const m=MM[rankMetric];
   const colors=rows.map(s=>{const st=stAt(s,asOf);
@@ -398,27 +398,27 @@ function rankChart(){
       title:c=>rows[c[0].dataIndex].name,label:c=>m.l+': '+m.f(c.parsed.x),
       afterLabel:c=>{const s=rows[c.dataIndex];return ['Buy: '+fmt(s.ordered)+' C3 + '+fmt(s.c4commit||0)+' C4 = '+fmt(s.totalBuy),'Sell-thru of total buy: '+pct(stAt(s,asOf))];}}}},
       scales:{x:{ticks:{callback:v=>rankMetric==='st'?(v*100)+'%':(rankMetric==='revenue'?'$'+Math.round(v/1000)+'k':fmt(v))}},y:{ticks:{font:{size:10.5}}}}}});
-  document.getElementById('skuRankNote').textContent=rankMetric==='st'?'Green ≥85% · Amber/Red need a push':'';
+  document.getElementById('skuRankNote').textContent=rankMetric==='st'?'Sell-thru vs total buy (C3+C4) · all 23 program SKUs':'All 23 program SKUs incl. C4 new items';
 }
 document.getElementById('skuMetric').onclick=e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#skuMetric button').forEach(x=>x.classList.remove('on'));b.classList.add('on');rankMetric=b.dataset.m;rankChart();};
 
 // ---- trend ----
 let selSet=new Set();
 function buildChips(){
-  const order=SK.map((s,i)=>i).sort((a,b)=>cumUnits(SK[b],asOf)-cumUnits(SK[a],asOf));
-  document.getElementById('trendChips').innerHTML=order.map(i=>`<span class="chip" data-i="${i}"><span class="sw" style="background:${PAL[i%PAL.length]}"></span>${short(SK[i].name)}</span>`).join('');
+  const order=ALLSK.map((s,i)=>i).sort((a,b)=>cumUnits(ALLSK[b],asOf)-cumUnits(ALLSK[a],asOf));
+  document.getElementById('trendChips').innerHTML=order.map(i=>`<span class="chip" data-i="${i}"><span class="sw" style="background:${PAL[i%PAL.length]}"></span>${short(ALLSK[i].name)}</span>`).join('');
   document.querySelectorAll('#trendChips .chip').forEach(c=>c.onclick=()=>{const i=+c.dataset.i;if(selSet.has(i))selSet.delete(i);else selSet.add(i);paintChips();trendChart();oosChart();});
 }
 function paintChips(){document.querySelectorAll('#trendChips .chip').forEach(c=>{const i=+c.dataset.i,col=PAL[i%PAL.length];if(selSet.has(i)){c.style.background=col+'22';c.style.borderColor=col;c.style.color='#fff';}else{c.style.background='';c.style.borderColor='';c.style.color='';}});}
 function setSel(idxs){selSet=new Set(idxs);paintChips();trendChart();oosChart();}
 function trendChart(){
   const labels=WEEKS.map(w=>w.label);
-  const ds=[...selSet].map(i=>{const s=SK[i],col=PAL[i%PAL.length];return {label:short(s.name),data:wdates.map(d=>{const r=s.weekly[d];return r?r.units:null;}),borderColor:col,backgroundColor:col,tension:.3,borderWidth:2,pointRadius:2,spanGaps:true};});
+  const ds=[...selSet].map(i=>{const s=ALLSK[i],col=PAL[i%PAL.length];return {label:short(s.name),data:wdates.map(d=>{const r=s.weekly[d];return r?r.units:null;}),borderColor:col,backgroundColor:col,tension:.3,borderWidth:2,pointRadius:2,spanGaps:true};});
   if(charts.trend)charts.trend.destroy();
   charts.trend=new Chart(ch('ch_trend'),{type:'line',data:{labels,datasets:ds},options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{boxWidth:12,font:{size:10.5}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{grid:{display:false}}}}});
 }
-document.getElementById('trendTop5').onclick=()=>setSel(SK.map((s,i)=>i).sort((a,b)=>cumUnits(SK[b],asOf)-cumUnits(SK[a],asOf)).slice(0,5));
-document.getElementById('trendBottom5').onclick=()=>setSel(SK.map((s,i)=>i).sort((a,b)=>cumUnits(SK[a],asOf)-cumUnits(SK[b],asOf)).slice(0,5));
+document.getElementById('trendTop5').onclick=()=>setSel(ALLSK.map((s,i)=>i).sort((a,b)=>cumUnits(ALLSK[b],asOf)-cumUnits(ALLSK[a],asOf)).slice(0,5));
+document.getElementById('trendBottom5').onclick=()=>setSel(ALLSK.map((s,i)=>i).sort((a,b)=>cumUnits(ALLSK[a],asOf)-cumUnits(ALLSK[b],asOf)).slice(0,5));
 document.getElementById('trendClear').onclick=()=>setSel([]);
 
 // ---- forecast ----
@@ -462,8 +462,8 @@ function renderHealth(){
 }
 document.querySelectorAll('#healthTbl th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k===sortK)sortAsc=!sortAsc;else{sortK=k;sortAsc=(k==='name'||k==='family'||k==='mdStart');}renderHealth();});
 function oosChart(){
-  let idxs=[...selSet];if(!idxs.length)idxs=SK.map((s,i)=>i).sort((a,b)=>(metaAt(SK[b],asOf).oos||0)-(metaAt(SK[a],asOf).oos||0)).slice(0,6);
-  const ds=idxs.map(i=>{const s=SK[i],col=PAL[i%PAL.length];return {label:short(s.name),data:wdates.map(d=>{const r=s.weekly[d];return r&&r.oos!=null?r.oos*100:null;}),borderColor:col,backgroundColor:col,tension:.3,borderWidth:2,pointRadius:2,spanGaps:true};});
+  let idxs=[...selSet];if(!idxs.length)idxs=ALLSK.map((s,i)=>i).sort((a,b)=>(metaAt(ALLSK[b],asOf).oos||0)-(metaAt(ALLSK[a],asOf).oos||0)).slice(0,6);
+  const ds=idxs.map(i=>{const s=ALLSK[i],col=PAL[i%PAL.length];return {label:short(s.name),data:wdates.map(d=>{const r=s.weekly[d];return r&&r.oos!=null?r.oos*100:null;}),borderColor:col,backgroundColor:col,tension:.3,borderWidth:2,pointRadius:2,spanGaps:true};});
   if(charts.oos)charts.oos.destroy();
   charts.oos=new Chart(ch('ch_oos'),{type:'line',data:{labels:WEEKS.map(w=>w.label),datasets:ds},options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{boxWidth:12,font:{size:10}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y.toFixed(0)+'%'}}},scales:{y:{ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}}}});
 }
@@ -520,6 +520,14 @@ document.getElementById('genTime').textContent=DATA.generated;
 const CHB=DATA.channelBySku||{}, CH_START=DATA.channelStart||'9999';
 const CHDEF=[['store','Store','#4f8cff'],['sfs','Ship-from-Store','#a06bff'],['pickup','Store Pickup','#2dd4bf'],['shipt','Shipt','#f5a623'],['onlineOther','Online other','#ff6fa5']];
 const NAMEBY={};SK.forEach(s=>NAMEBY[s.dpci]=s.name);(DATA.c4new||[]).forEach(s=>NAMEBY[s.dpci]=s.name);
+const ALLSK=SK.concat((DATA.c4new||[]).map(e=>{
+  const wk={};Object.entries(e.weekly).forEach(([d,u])=>{
+    let asp=null;const c=(CHB[e.dpci]||{})[d];
+    if(c){let dol=0,un=0;Object.values(c).forEach(v=>{dol+=v[0];un+=v[1];});if(un>0)asp=dol/un;}
+    wk[d]={units:u,asp};});
+  return {dpci:e.dpci,name:e.name,family:'C4 New Item',program:'C4',ordered:0,c4commit:e.ordered,totalBuy:e.ordered,msrp:null,weekly:wk};
+}));
+{const o=document.createElement('option');o.value='C4 New Item';o.textContent='C4 New Item';document.getElementById('famFilter').appendChild(o);}
 let chMode='d';
 function chWeeks(){return wdates.map((d,i)=>i).filter(i=>wdates[i]>=CH_START&&i<=asOf);}
 function chVal(dp,d,key,ui){const e=(CHB[dp]||{})[d];return (e&&e[key])?(e[key][ui]||0):0;}
@@ -626,6 +634,6 @@ function renderSummary(){
 }
 function renderAll(){renderKPIs();trajChart();pspwChart();wkChart();renderSignals();rankChart();buildChips();paintChips();trendChart();fcSkuChart();fcDetail();renderHealth();oosChart();wosChart();renderC3();renderC4();liabChart();chmixChart();onlineShareChart();promoChart();lostChart();}
 // initial selection: top 5 for trend
-selSet=new Set(SK.map((s,i)=>i).sort((a,b)=>cumUnits(SK[b],WEEKS.length-1)-cumUnits(SK[a],WEEKS.length-1)).slice(0,5));
+selSet=new Set(ALLSK.map((s,i)=>i).sort((a,b)=>cumUnits(ALLSK[b],WEEKS.length-1)-cumUnits(ALLSK[a],WEEKS.length-1)).slice(0,5));
 renderAll();renderSummary();
 </script></body></html>
